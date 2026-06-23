@@ -2,5 +2,11 @@
 name = "fmt-rs"
 version = "0.1.0"
 edition = "2024"
+description = "A tiny dependency-free Bash command formatter for the Claude Code permission dialog"
+license = "MIT"
+repository = "https://github.com/lucas77778/fmt-rs"
+readme = "README.md"
+keywords = ["bash", "shell", "formatter", "pretty-printer", "shfmt"]
+categories = ["command-line-utilities", "development-tools"]
 
 [dependencies]
