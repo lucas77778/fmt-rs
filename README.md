@@ -1,5 +1,9 @@
 # fmt-rs
 
+[![crates.io](https://img.shields.io/crates/v/fmt-rs.svg)](https://crates.io/crates/fmt-rs)
+[![docs.rs](https://img.shields.io/docsrs/fmt-rs)](https://docs.rs/fmt-rs)
+[![license](https://img.shields.io/crates/l/fmt-rs.svg)](LICENSE)
+
 A tiny, dependency-free **Bash command formatter** written in Rust.
 
 It pretty-prints shell commands so they are easy to read — its purpose is to
@@ -80,7 +84,23 @@ It is validated against a corpus of 200+ real-world and adversarial commands
 (quotes hiding `)`/`]]`, nested `$()`, extglobs, fd redirections, …) with zero
 corruption, plus 70+ unit tests.
 
-## Build
+## Install
+
+From [crates.io](https://crates.io/crates/fmt-rs):
+
+```bash
+cargo install fmt-rs        # installs the `fmt-rs` binary
+```
+
+As a library:
+
+```bash
+cargo add fmt-rs
+```
+
+Requires Rust 1.88 or newer.
+
+## Build from source
 
 ```bash
 cargo build --release

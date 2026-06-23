@@ -2,6 +2,7 @@
 name = "fmt-rs"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.88"
 description = "A tiny dependency-free Bash command formatter for the Claude Code permission dialog"
 license = "MIT"
 repository = "https://github.com/lucas77778/fmt-rs"
