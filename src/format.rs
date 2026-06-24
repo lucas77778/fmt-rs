@@ -63,14 +63,35 @@ pub fn hook_response(raw: &str, width: isize) -> String {
         return HOOK_NOOP.to_string();
     }
 
+    // Claude Code ignores `updatedInput` unless a `permissionDecision` is set,
+    // so we can't reformat while staying transparent to the permission flow
+    // (anthropics/claude-agent-sdk-python#381). We pick the decision by the
+    // session's permission mode so reformatting never changes whether the user
+    // is prompted:
+    //   - `bypassPermissions`: the command would already run without a prompt,
+    //     so `allow` reformats it and keeps that. (It also avoids the bug where
+    //     returning `ask` permanently breaks bypass mode for the session.)
+    //   - any other mode (default / acceptEdits / plan / unknown): `ask`, which
+    //     shows the reformatted command for confirmation exactly as before. We
+    //     never use `allow` here — a Bash command normally prompts in these
+    //     modes (acceptEdits auto-accepts edits, NOT Bash), so silently granting
+    //     it would be unsafe.
+    let mode = payload
+        .get("permission_mode")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let decision = if mode == "bypassPermissions" { "allow" } else { "ask" };
+
     format!(
         concat!(
             "{{\"hookSpecificOutput\":{{",
             "\"hookEventName\":\"PreToolUse\",",
-            "\"permissionDecision\":\"ask\",",
+            "\"permissionDecision\":\"{}\",",
+            "\"permissionDecisionReason\":\"fmt-rs: reformatted for readability\",",
             "\"updatedInput\":{{\"command\":{}}}",
             "}}}}"
         ),
+        decision,
         json::encode_string(cleaned)
     )
 }
@@ -176,14 +197,52 @@ mod tests {
 
     // -- hook response ----------------------------------------------------
 
+    /// Extract `permissionDecision` and `updatedInput.command` from a response.
+    fn decision_and_cmd(out: &str) -> (String, String) {
+        let v = crate::json::parse(out).unwrap();
+        let h = v.get("hookSpecificOutput").unwrap();
+        (
+            h.get("permissionDecision").and_then(|d| d.as_str()).unwrap().to_string(),
+            h.get("updatedInput")
+                .and_then(|u| u.get("command"))
+                .and_then(|c| c.as_str())
+                .unwrap()
+                .to_string(),
+        )
+    }
+
     #[test]
-    fn hook_formats_bash_command() {
+    fn hook_formats_bash_command_with_ask_by_default() {
+        // No permission_mode field → default to "ask" (never over-grant).
         let raw = r#"{"tool_name":"Bash","tool_input":{"command":"ls   -la"}}"#;
-        let out = hook_response(raw, 80);
-        assert_eq!(
-            out,
-            r#"{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","updatedInput":{"command":"ls -la"}}}"#
-        );
+        let (decision, cmd) = decision_and_cmd(&hook_response(raw, 80));
+        assert_eq!(decision, "ask");
+        assert_eq!(cmd, "ls -la");
+    }
+
+    #[test]
+    fn hook_allows_in_bypass_mode() {
+        // In bypassPermissions the command would run without a prompt anyway, so
+        // we reformat with "allow" rather than forcing a confirmation.
+        let raw = r#"{"tool_name":"Bash","permission_mode":"bypassPermissions","tool_input":{"command":"a=1;b=2"}}"#;
+        let (decision, cmd) = decision_and_cmd(&hook_response(raw, 80));
+        assert_eq!(decision, "allow");
+        assert_eq!(cmd, "a=1\nb=2");
+    }
+
+    #[test]
+    fn hook_asks_in_accept_edits_mode() {
+        // acceptEdits auto-accepts edits, NOT Bash — so Bash must still prompt.
+        let raw = r#"{"tool_name":"Bash","permission_mode":"acceptEdits","tool_input":{"command":"a=1;b=2"}}"#;
+        let (decision, _) = decision_and_cmd(&hook_response(raw, 80));
+        assert_eq!(decision, "ask");
+    }
+
+    #[test]
+    fn hook_asks_in_default_mode() {
+        let raw = r#"{"tool_name":"Bash","permission_mode":"default","tool_input":{"command":"a=1;b=2"}}"#;
+        let (decision, _) = decision_and_cmd(&hook_response(raw, 80));
+        assert_eq!(decision, "ask");
     }
 
     #[test]

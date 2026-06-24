@@ -145,7 +145,9 @@ Claude Code 本体是闭源、编译进二进制的（`~/.local/share/claude/ver
 - [x] **M0（完成）**：自研 lexer（`lexer.rs`）—— 词/操作符/引号/转义/UTF-8、注释检测、**heredoc 检测 + flush**、共享 quote-aware opaque 扫描器（`scan_word`/`paren_group`/`dollar_brace`）、字节偏移；含 corpus round-trip property 测试
 - [x] **M1（完成）**：自研递归下降 parser（`parser.rs`）—— and-or/管道/简单命令/重定向(含 fd)/Subshell/Block/if-elif-else/while-until/for；`[[ ]]`/`(( ))` 字节偏移 opaque 切片；驱动层 `format.rs`（>8k passthrough、注释 bail、heredoc/funcDecl/case bail、**输出 word 多集校验**）；`main.rs` stdin→stdout，`FMTRS_WIDTH` 可覆盖；端到端跑通 seed 用例
 - [x] **M2（完成）**：长链折行由 `Doc::group` + break propagation 实现，operator-at-end + 2 空格缩进；实测 `cd && npm ci && …`、管道链按宽度逐行展开
-- [x] **M3（完成，已上线）**：`--hook` 模式 —— 读 PreToolUse JSON、输出 `ask`+`updatedInput`（改写时）或 `{}`（无改写/非 Bash/任何错误）。零依赖手写 JSON 解析/编码（`json.rs`）。已替换 `~/.claude/settings.json` 的 Bash hook，**fmt-rs 现已接管 dialog 格式化**（5.4ms，旧 node hook ~100ms+）
+- [x] **M3（完成，已上线）**：`--hook` 模式 —— 读 PreToolUse JSON、输出 `permissionDecision`+`updatedInput`（改写时）或 `{}`（无改写/非 Bash/任何错误）。零依赖手写 JSON 解析/编码（`json.rs`）。已替换 `~/.claude/settings.json` 的 Bash hook，**fmt-rs 现已接管 dialog 格式化**（5.4ms，旧 node hook ~100ms+）
+  - **按权限模式决定（修复 auto 模式被强制弹框）**：`updatedInput` 必须搭配 `permissionDecision` 才生效（Claude Code 限制 [agent-sdk#381]，无法"只重写不表态"）。故读输入里的 `permission_mode`：`bypassPermissions` → `allow`（本就自动放行,美化且不弹框,且规避 `ask` 破坏 bypass 会话的 bug [claude-code#37420]）；其余模式(`default`/`acceptEdits`/`plan`/未知)→ `ask`（照常弹框审阅,**绝不在 acceptEdits 下 `allow`,因为它只自动放行 Edit 不放行 Bash**）。
+  - **遗留**：`default`/`acceptEdits` 下被改写的命令仍会弹框,即使本可被 allowlist 自动放行 —— 这是 #381 未实现导致的根本限制,无法在 hook 侧规避(强行 `allow` 会不安全地放行本该确认的 Bash)。待 Claude Code 支持"updatedInput 不带 decision"后可彻底解决。
 - [ ] **M4**：扩充压测到 1000 条（bail 率 <5%，每条输出过 `bash -n`）；边界测试（引号内 `]]`、heredoc 终止符前缀匹配、同行多 heredoc）；把压测器 + 语料落进仓库 `tests/`；观察真实使用、收集 bail 样本迭代
 
 **进度**：M-1~M3 完成,共 8 个源文件 ~2300 行 + 72 单测全过 + 205 条对抗压测 0 失败；release 二进制 590K,hook 5.4ms。剩 M4(扩展压测 + 长期观察)。
